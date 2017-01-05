@@ -74,20 +74,42 @@ function viewerResponse(message) {
 	}
 }
 
+// function onOffer(error, offerSdp) {
+// 	if (error)
+// 		return console.error('Error generating the offer');
+// 	console.info('Invoking SDP offer callback function ' + location.host);
+// 	var message = {
+// 			id : 'start',
+// 			sdpOffer : offerSdp,
+// 			mode :  $('input[name="mode"]:checked').val()
+// 	}
+// 	sendMessage(message);
+// }
+
 function presenter() {
 	if (!webRtcPeer) {
 		showSpinner(video);
 
 		var options = {
 			localVideo: video,
-			onicecandidate : onIceCandidate
-	    }
+			onicecandidate : onIceCandidate,
+			mediaConstraints: {
+				audio: true,
+				video: false
+			}
+    }
 
 		webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options, function(error) {
 			if(error) return onError(error);
 
 			this.generateOffer(onOfferPresenter);
 		});
+
+		// webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerSendrecv(options, function(error) {
+		// 	if(error) return onError(error);
+		//
+		// 	webRtcPeer.generateOffer(onOffer);
+		// });
 	}
 }
 
@@ -107,7 +129,11 @@ function viewer() {
 
 		var options = {
 			remoteVideo: video,
-			onicecandidate : onIceCandidate
+			onicecandidate : onIceCandidate,
+			mediaConstraints: {
+				audio: true,
+				video: false
+			}
 		}
 
 		webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options, function(error) {
@@ -165,7 +191,7 @@ function sendMessage(message) {
 function showSpinner() {
 	for (var i = 0; i < arguments.length; i++) {
 		arguments[i].poster = './img/transparent-1px.png';
-		arguments[i].style.background = 'center transparent url("./img/spinner.gif") no-repeat';
+		// arguments[i].style.background = 'center transparent url("./img/spinner.gif") no-repeat';
 	}
 }
 
