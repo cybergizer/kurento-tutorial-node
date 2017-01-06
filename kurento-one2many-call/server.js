@@ -49,6 +49,7 @@ var candidatesQueue = {};
 var kurentoClient = null;
 var presenter = null;
 var viewers = [];
+var listeners = [];
 var noPresenterMessage = 'No active presenter. Try again later...';
 
 /*
@@ -71,20 +72,79 @@ function nextUniqueId() {
 	return idCounter.toString();
 }
 
-function play(session, fileName) {
+function play(sessionId, message, ws) {
+
   getKurentoClient(function(error, kurentoClient) {
+    if (error) return console.log("ERROR 1: Could not find media server at address" + ws_uri + ". Exiting with error " + error);
+
+    // Create pipline
+    console.log('Creating MediaPipline');
     kurentoClient.create('MediaPipeline', function(error, pipeline) {
-      pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
-        pipeline.create('PlayerEndpoint',
-          {
-            uri: "file:///tmp/records/"+fileName+".webm",
-            mediaProfile:'WEBM_AUDIO_ONLY'
-          }, function(error, player) {
-             mediaType = 'AUDIO';
-             player.connect(webRtcEndpoint, mediaType, function (err) {
-                 player.play();
-                 console.log("playing started ...");
-             });
+      if (error) return console.log("ERROR 2: " + error);
+
+      // Create player
+      console.log('Creating PlayerEndpoint');
+      pipeline.create('PlayerEndpoint', {uri: "http://files.kurento.org/video/format/sintel.webm", useEncodedMedia: true}, function(error, playerEndpoint) {
+        if (error) return console.log("ERROR 3: " + error);
+
+        playerEndpoint.on('EndOfStream', function() {
+          console.log('END OF STREAM');
+          pipeline.release();
+        });
+
+        console.log('Now Playing');
+        playerEndpoint.play(function(error) {
+          if (error) return console.log("ERROR 4: " + error);
+
+          // Create WebRtc
+          console.log('Creating WebRTCEndpoint');
+          pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
+            if (error) return console.log("ERROR 5: " + error);
+
+            listeners[sessionId] = {
+              "webRtcEndpoint" : webRtcEndpoint,
+              "ws" : ws
+            }
+
+            if (candidatesQueue[sessionId]) {
+
+                while(candidatesQueue[sessionId].length) {
+                    var candidate = candidatesQueue[sessionId].shift();
+                    webRtcEndpoint.addIceCandidate(candidate);
+                }
+            }
+
+            webRtcEndpoint.on('OnIceCandidate', function(event) {
+                var candidate = kurento.getComplexType('IceCandidate')(event.candidate);
+                ws.send(JSON.stringify({
+                    id : 'iceCandidate',
+                    candidate : candidate
+                }));
+            });
+
+            console.log('Processing SDP offer');
+            webRtcEndpoint.processOffer(message.sdpOffer, function(error, sdpAnswer) {
+              if (error) return console.log("ERROR 6: " + error);
+
+              console.log('Connecting to endpoint');
+              playerEndpoint.connect(webRtcEndpoint, function(error) {
+                if (error) return console.log("ERROR 7: " + error);
+
+                console.log('Connected!');
+                ws.send(JSON.stringify({
+                  id : 'play',
+                  response : 'accepted',
+                  sdpAnswer : sdpAnswer
+                }));
+              });
+            });
+
+            webRtcEndpoint.gatherCandidates(function(error) {
+                if (error) {
+                    return callback(error);
+                }
+            });
+          });
         });
       });
     });
@@ -182,7 +242,7 @@ wss.on('connection', function(ws) {
             break;
 
         case 'play':
-            play(sessionId, message['fileName']);
+            play(sessionId, message, ws);
             break;
 
         default:
@@ -435,6 +495,10 @@ function onIceCandidate(sessionId, _candidate) {
     else if (viewers[sessionId] && viewers[sessionId].webRtcEndpoint) {
         console.info('Sending viewer candidate');
         viewers[sessionId].webRtcEndpoint.addIceCandidate(candidate);
+    }
+    else if (listeners[sessionId] && listeners[sessionId].webRtcEndpoint) {
+        console.info('Sending listener candidate');
+        listeners[sessionId].webRtcEndpoint.addIceCandidate(candidate);
     }
     else {
         console.info('Queueing candidate');

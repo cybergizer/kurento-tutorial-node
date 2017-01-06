@@ -46,6 +46,9 @@ ws.onmessage = function(message) {
 	case 'stopCommunication':
 		dispose();
 		break;
+	case 'play':
+		playResponse(parsedMessage);
+		break;
 	case 'iceCandidate':
 		webRtcPeer.addIceCandidate(parsedMessage.candidate)
 		break;
@@ -62,6 +65,15 @@ function presenterResponse(message) {
 	} else {
 		webRtcPeer.processAnswer(message.sdpAnswer);
 	}
+}
+
+function playResponse(message) {
+	console.info('SDP answer received from server. Processing ...');
+
+	webRtcPeer.processAnswer(message.sdpAnswer, function(error) {
+		if (error)
+			return console.error(error);
+	});
 }
 
 function viewerResponse(message) {
@@ -111,23 +123,29 @@ function presenter() {
 }
 
 function play(fileName) {
-	console.log("Starting to play recorded video...");
+	$.fileName = fileName;
+	// Disable start button
+	showSpinner(video);
+
+	var mode = $('input[name="mode"]:checked').val();
+	console.log('Creating WebRtcPeer in ' + mode + ' mode and generating local sdp offer ...');
+
+	var userMediaConstraints = {audio : true,video : true}
 
 	var options = {
-			mediaConstraints: {
-				audio: true,
-				video: false
-			},
-			onicecandidate : onIceCandidate,
-			fileName : fileName,
+		remoteVideo : video,
+		mediaConstraints : userMediaConstraints,
+		onicecandidate : onIceCandidate
 	}
+
+	console.info('User media constraints' + userMediaConstraints);
 
 	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
 			function(error) {
-		if (error)
-			return console.error(error);
-		webRtcPeer.generateOffer(onPlayOffer);
-	});
+				if (error)
+					return console.error(error);
+				webRtcPeer.generateOffer(onPlayOffer);
+			});
 }
 
 function onPlayOffer(error, offerSdp) {
