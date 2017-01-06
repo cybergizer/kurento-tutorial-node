@@ -74,17 +74,18 @@ function viewerResponse(message) {
 	}
 }
 
-// function onOffer(error, offerSdp) {
-// 	if (error)
-// 		return console.error('Error generating the offer');
-// 	console.info('Invoking SDP offer callback function ' + location.host);
-// 	var message = {
-// 			id : 'start',
-// 			sdpOffer : offerSdp,
-// 			mode :  $('input[name="mode"]:checked').val()
-// 	}
-// 	sendMessage(message);
-// }
+function onOffer(error, offerSdp) {
+	if (error)
+		return console.error('Error generating the offer');
+	console.info('Invoking SDP offer callback function ' + location.host);
+	var message = {
+			id : 'start',
+			fileName : 'fileXX1',// + Math.random(),
+			sdpOffer : offerSdp,
+			mode :  $('input[name="mode"]:checked').val()
+	}
+	sendMessage(message);
+}
 
 function presenter() {
 	if (!webRtcPeer) {
@@ -105,20 +106,56 @@ function presenter() {
 			this.generateOffer(onOfferPresenter);
 		});
 
-		// webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerSendrecv(options, function(error) {
-		// 	if(error) return onError(error);
-		//
-		// 	webRtcPeer.generateOffer(onOffer);
-		// });
+
 	}
 }
 
+function play(fileName) {
+	console.log("Starting to play recorded video...");
+
+	var options = {
+			mediaConstraints: {
+				audio: true,
+				video: false
+			},
+			onicecandidate : onIceCandidate,
+			fileName : fileName,
+	}
+
+	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
+			function(error) {
+		if (error)
+			return console.error(error);
+		webRtcPeer.generateOffer(onPlayOffer);
+	});
+}
+
+function onPlayOffer(error, offerSdp) {
+	if (error)
+		return console.error('Error generating the offer');
+	console.info('Invoking SDP offer callback function ' + location.host);
+	var message = {
+			id : 'play',
+			sdpOffer : offerSdp
+	}
+	sendMessage(message);
+}
+
 function onOfferPresenter(error, offerSdp) {
-    if (error) return onError(error);
+    // if (error) return onError(error);
+		if (error) return alert(error);
+
+		fileName = "file" + Math.random().toString().replace('.', '');
+		$('.records').append('<a href="#" id='+fileName+'>'+fileName+'</a><br/>');
+
+		$('#' + fileName).click(function () {
+			play(fileName);
+		});
 
 	var message = {
 		id : 'presenter',
-		sdpOffer : offerSdp
+		sdpOffer : offerSdp,
+		fileName : fileName,
 	};
 	sendMessage(message);
 }

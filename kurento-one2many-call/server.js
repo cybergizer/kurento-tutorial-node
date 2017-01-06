@@ -39,6 +39,8 @@ var options =
 
 var app = express();
 
+var recorder = null;
+
 /*
  * Definition of global variables.
  */
@@ -69,6 +71,46 @@ function nextUniqueId() {
 	return idCounter.toString();
 }
 
+function play(session, fileName) {
+  getKurentoClient(function(error, kurentoClient) {
+    kurentoClient.create('MediaPipeline', function(error, pipeline) {
+      pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
+        pipeline.create('PlayerEndpoint',
+          {
+            uri: "file:///tmp/records/"+fileName+".webm",
+            mediaProfile:'WEBM_AUDIO_ONLY'
+          }, function(error, player) {
+             mediaType = 'AUDIO';
+             player.connect(webRtcEndpoint, mediaType, function (err) {
+                 player.play();
+                 console.log("playing started ...");
+             });
+        });
+      });
+    });
+  });
+}
+
+function start(session, fileName) {
+  getKurentoClient(function(error, kurentoClient) {
+    kurentoClient.create('MediaPipeline', function(error, pipeline) {
+      pipeline.create('WebRtcEndpoint', function(error, webRtcEndpointSource) {
+        pipeline.create('RecorderEndpoint',
+          {
+            uri: "file:///tmp/records/"+fileName+".webm",
+            mediaProfile:'WEBM_AUDIO_ONLY'
+          }, function(error, recorderEndpointA) {
+             mediaType = 'AUDIO';
+             webRtcEndpointSource.connect(recorderEndpointA, mediaType, function (err) {
+                 recorderEndpointA.record();
+                 console.log("recording started ...");
+             });
+        });
+      });
+    });
+  });
+}
+
 /*
  * Management of WebSocket messages
  */
@@ -93,7 +135,7 @@ wss.on('connection', function(ws) {
 
         switch (message.id) {
         case 'presenter':
-			startPresenter(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
+			startPresenter(sessionId, ws, message.sdpOffer, message.fileName, function(error, sdpAnswer) {
 				if (error) {
 					return ws.send(JSON.stringify({
 						id : 'presenterResponse',
@@ -135,10 +177,18 @@ wss.on('connection', function(ws) {
             onIceCandidate(sessionId, message.candidate);
             break;
 
+        case 'start':
+            start(sessionId, message['fileName']);
+            break;
+
+        case 'play':
+            play(sessionId, message['fileName']);
+            break;
+
         default:
             ws.send(JSON.stringify({
                 id : 'error',
-                message : 'Invalid message ' + message
+                message : 'Invalid message ' + JSON.stringify(message)
             }));
             break;
         }
@@ -167,7 +217,7 @@ function getKurentoClient(callback) {
     });
 }
 
-function startPresenter(sessionId, ws, sdpOffer, callback) {
+function startPresenter(sessionId, ws, sdpOffer, fileName, callback) {
 	clearCandidatesQueue(sessionId);
 
 	if (presenter !== null) {
@@ -204,6 +254,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 			}
 
 			presenter.pipeline = pipeline;
+
 			pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
 				if (error) {
 					stop(sessionId);
@@ -245,6 +296,19 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 
 					callback(null, sdpAnswer);
 				});
+
+        pipeline.create('RecorderEndpoint',
+          {
+            uri: "file:///tmp/records/" + fileName + ".webm",
+            mediaProfile:'WEBM_AUDIO_ONLY'
+          }, function(error, recorderEndpointA) {
+             mediaType = 'AUDIO';
+             webRtcEndpoint.connect(recorderEndpointA, mediaType, function (err) {
+                 recorderEndpointA.record();
+                 recorder = recorderEndpointA;
+                 console.log("recording started ...");
+             });
+        });
 
                 webRtcEndpoint.gatherCandidates(function(error) {
                     if (error) {
@@ -353,6 +417,12 @@ function stop(sessionId) {
 	}
 
 	clearCandidatesQueue(sessionId);
+
+  // if(recorder) {
+  //   recorder.stop();
+  //   recorder = null
+  //   console.log("Rocord was stoped");
+  // }
 }
 
 function onIceCandidate(sessionId, _candidate) {
