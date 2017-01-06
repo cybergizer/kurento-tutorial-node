@@ -57,6 +57,13 @@ ws.onmessage = function(message) {
 	}
 }
 
+function getMediaConstraints() {
+	return {
+		audio: true,
+		video: false,
+	}
+}
+
 function presenterResponse(message) {
 	if (message.response != 'accepted') {
 		var errorMsg = message.message ? message.message : 'Unknow error';
@@ -106,10 +113,7 @@ function presenter() {
 		var options = {
 			localVideo: video,
 			onicecandidate : onIceCandidate,
-			mediaConstraints: {
-				audio: true,
-				video: false
-			}
+			mediaConstraints: getMediaConstraints(),
     }
 
 		webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options, function(error) {
@@ -130,15 +134,13 @@ function play(fileName) {
 	var mode = $('input[name="mode"]:checked').val();
 	console.log('Creating WebRtcPeer in ' + mode + ' mode and generating local sdp offer ...');
 
-	var userMediaConstraints = {audio : true,video : true}
-
 	var options = {
 		remoteVideo : video,
-		mediaConstraints : userMediaConstraints,
+		mediaConstraints : getMediaConstraints(),
 		onicecandidate : onIceCandidate
 	}
 
-	console.info('User media constraints' + userMediaConstraints);
+	console.info('User media constraints' + getMediaConstraints());
 
 	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
 			function(error) {
@@ -154,7 +156,8 @@ function onPlayOffer(error, offerSdp) {
 	console.info('Invoking SDP offer callback function ' + location.host);
 	var message = {
 			id : 'play',
-			sdpOffer : offerSdp
+			sdpOffer : offerSdp,
+			fileName: $.fileName,
 	}
 	sendMessage(message);
 }
@@ -185,10 +188,7 @@ function viewer() {
 		var options = {
 			remoteVideo: video,
 			onicecandidate : onIceCandidate,
-			mediaConstraints: {
-				audio: true,
-				video: false
-			}
+			mediaConstraints: getMediaConstraints(),
 		}
 
 		webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options, function(error) {
@@ -246,7 +246,7 @@ function sendMessage(message) {
 function showSpinner() {
 	for (var i = 0; i < arguments.length; i++) {
 		arguments[i].poster = './img/transparent-1px.png';
-		// arguments[i].style.background = 'center transparent url("./img/spinner.gif") no-repeat';
+		arguments[i].style.background = 'center transparent url("./img/spinner.gif") no-repeat';
 	}
 }
 

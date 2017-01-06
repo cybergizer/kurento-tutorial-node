@@ -84,7 +84,11 @@ function play(sessionId, message, ws) {
 
       // Create player
       console.log('Creating PlayerEndpoint');
-      pipeline.create('PlayerEndpoint', {uri: "http://files.kurento.org/video/format/sintel.webm", useEncodedMedia: true}, function(error, playerEndpoint) {
+
+      // pipeline.create('PlayerEndpoint', {uri: "http://files.kurento.org/video/format/sintel.webm"}, function(error, playerEndpoint) {
+      console.log("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWw", "file:///tmp/records/"+message.fileName+".webm");
+      pipeline.create('PlayerEndpoint', {uri: "file:///tmp/records/"+message.fileName+".webm"}, function(error, playerEndpoint) {
+      // pipeline.create('PlayerEndpoint', {uri: "file:///tmp/records/file08580415751031487.webm"}, function(error, playerEndpoint) {
         if (error) return console.log("ERROR 3: " + error);
 
         playerEndpoint.on('EndOfStream', function() {
